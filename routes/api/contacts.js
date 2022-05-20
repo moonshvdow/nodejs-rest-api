@@ -1,26 +1,15 @@
 const express = require("express");
-const Joi = require("joi");
 
-const {
-  listContacts,
-  getContactById,
-  removeContact,
-  addContact,
-  updateContact,
-} = require("../../models/contacts");
+const {Contact, addSchema, updateFavoriteSchema} = require('../../models/contacts')
 const { createError } = require("../../helpers");
 
 const router = express.Router();
 
-const schema = Joi.object({
-  name: Joi.string().required(),
-  email: Joi.string().required(),
-  phone: Joi.string().required()
-});
+
 
 router.get("/", async (req, res, next) => {
   try {
-    const result = await listContacts();
+    const result = await Contact.find({}, "-createdAt -updatedAt");
     res.json(result);
   } catch (error) {
     next(error);
@@ -30,7 +19,7 @@ router.get("/", async (req, res, next) => {
 router.get("/:contactId", async (req, res, next) => {
   try {
     const {contactId} = req.params;
-    const result = await getContactById(contactId);
+    const result = await Contact.findById(contactId, "-createdAt -updatedAt");;
     if(!result){
         throw createError(404);
     }
@@ -42,11 +31,11 @@ router.get("/:contactId", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const {error} = schema.validate(req.body);
+    const {error} = addSchema.validate(req.body);
     if(error){ 
         throw createError(400, error.message);
     }
-    const result = await addContact(req.body);
+    const result = await Contact.create(req.body);
     res.status(201).json(result);
 } catch (error) {
     next(error);
@@ -56,7 +45,7 @@ router.post("/", async (req, res, next) => {
 router.delete("/:contactId", async (req, res, next) => {
   try {
     const {contactId} = req.params;
-    const result = await removeContact(contactId);
+    const result = await Contact.findByIdAndRemove(contactId);
     if(!result){
         createError(404);
     }
@@ -70,12 +59,12 @@ router.delete("/:contactId", async (req, res, next) => {
 
 router.put("/:contactId", async (req, res, next) => {
   try {
-    const {error} = schema.validate(req.body);
+    const {error} = addSchema.validate(req.body);
     if(error){ 
         throw createError(400, error.message);
     }
     const {contactId} = req.params;
-    const result = await updateContact(contactId, req.body);
+    const result = await Contact.findByIdAndUpdate(contactId, req.body, {new: true});
     if(!result){
         throw createError(404);
     }
@@ -85,4 +74,20 @@ router.put("/:contactId", async (req, res, next) => {
 }
 });
 
+router.patch("/:contactId/favorite", async(req, res, next) => {
+  try {
+      const {error} = updateFavoriteSchema.validate(req.body);
+      if(error){ 
+          throw createError(400, error.message);
+      }
+      const {contactId} = req.params;
+      const result = await Contact.findByIdAndUpdate(contactId, req.body, {new: true});
+      if(!result){
+          throw createError(404);
+      }
+      res.json(result);
+  } catch (error) {
+      next(error);
+  }
+})
 module.exports = router;
