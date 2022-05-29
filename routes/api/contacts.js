@@ -2,24 +2,33 @@ const express = require("express");
 
 const {Contact, addSchema, updateFavoriteSchema} = require('../../models/contacts')
 const { createError } = require("../../helpers");
+const {auth} = require('../../middlewares')
 
 const router = express.Router();
 
 
 
-router.get("/", async (req, res, next) => {
+router.get("/", auth, async (req, res, next) => {
   try {
-    const result = await Contact.find({}, "-createdAt -updatedAt");
+    const {page, limit, favorite} = req.query;
+    const skip = (page - 1) * limit;
+    const {_id} = req.user;
+    if(favorite === true){
+      const result = await Contact.find({owner: _id, favorite: true}, "-createdAt -updatedAt", {skip, limit: Number(limit)}).populate('owner', 'email');
+      res.json(result);
+      return;
+    }
+    const result = await Contact.find({owner: _id}, "-createdAt -updatedAt", {skip, limit: Number(limit)}).populate('owner', 'email');
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-router.get("/:contactId", async (req, res, next) => {
+router.get("/:contactId", auth, async (req, res, next) => {
   try {
     const {contactId} = req.params;
-    const result = await Contact.findById(contactId, "-createdAt -updatedAt");;
+    const result = await Contact.findById(contactId, "-createdAt -updatedAt");
     if(!result){
         throw createError(404);
     }
@@ -29,20 +38,20 @@ router.get("/:contactId", async (req, res, next) => {
 }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", auth, async (req, res, next) => {
   try {
     const {error} = addSchema.validate(req.body);
     if(error){ 
         throw createError(400, error.message);
     }
-    const result = await Contact.create(req.body);
+    const result = await Contact.create({...req.body, owner: req.user._id});
     res.status(201).json(result);
 } catch (error) {
     next(error);
 }
 });
 
-router.delete("/:contactId", async (req, res, next) => {
+router.delete("/:contactId", auth, async (req, res, next) => {
   try {
     const {contactId} = req.params;
     const result = await Contact.findByIdAndRemove(contactId);
@@ -57,7 +66,7 @@ router.delete("/:contactId", async (req, res, next) => {
 }
 });
 
-router.put("/:contactId", async (req, res, next) => {
+router.put("/:contactId", auth, async (req, res, next) => {
   try {
     const {error} = addSchema.validate(req.body);
     if(error){ 
@@ -74,7 +83,7 @@ router.put("/:contactId", async (req, res, next) => {
 }
 });
 
-router.patch("/:contactId/favorite", async(req, res, next) => {
+router.patch("/:contactId/favorite", auth, async(req, res, next) => {
   try {
       const {error} = updateFavoriteSchema.validate(req.body);
       if(error){ 
