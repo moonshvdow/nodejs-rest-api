@@ -1,11 +1,15 @@
 const express = require('express');
 const bcrypt = require("bcryptjs");
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
+const gravatar = require('gravatar');
+const path = require("path");
+const fs = require("fs/promises");
+const Jimp = require("jimp");
 
 const { createError } = require("../../helpers");
 
 const {addUserSchema, User} = require('../../models/users')
-const { auth } = require('../../middlewares')
+const { auth, upload } = require('../../middlewares')
 
 const {SECRET_KEY} = process.env;
 
@@ -23,7 +27,8 @@ router.post('/signup', async(req, res, next) => {
             throw createError(409, "Email in use");
         }
         const hashPassword = await bcrypt.hash(password, 10);
-        const result = await User.create({email, password: hashPassword, subscription});
+        const avatarURL = gravatar.url(email)
+        const result = await User.create({email, password: hashPassword, subscription, avatarURL});
         res.status(201).json({
             user: {
                 email: result.email,
@@ -66,6 +71,28 @@ router.post("/login", async(req, res, next)=> {
         })
     } catch (error) {
         next(error);
+    }
+})
+
+const avatarsDir = path.join(__dirname, "../../", "public", "avatars");
+
+router.patch("/avatars", auth, upload.single("avatar"), async(req, res, next)=> {
+    try {
+        const {_id} = req.user;
+        const {path: tempDir, filename} = req.file;
+        const [extension] = filename.split(".").reverse();
+        const name =`${_id}.${extension}`;
+        const resultDir = path.join(avatarsDir, name);
+        await fs.rename(tempDir, resultDir);
+        const image = await Jimp.read(resultDir);
+        await image.resize(250, 250).write(resultDir);
+        const avatarURL = path.join("avatars", name);
+        await User.findByIdAndUpdate(_id, {avatarURL});
+        res.json({
+            avatarURL
+        })
+    } catch (error) {
+        
     }
 })
 
